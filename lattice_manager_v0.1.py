@@ -67,6 +67,27 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 for obj in objs:
                     col.label(text=f"  - {obj.name}")
 
+            # Display all lattice modifiers across managed objects
+            layout.label(text="Lattice Modifiers in Managed Objects:")
+            lattice_modifiers = get_lattice_modifiers(context)
+
+            for lattice_name, mods in lattice_modifiers.items():
+                box = layout.box()
+                row = box.row()
+                row.label(text=lattice_name)
+
+                # Toggle lattice visibility
+                lattice_object = mods[0].object if mods else None
+                if lattice_object:
+                    icon = "HIDE_OFF" if lattice_object.visible_get() else "HIDE_ON"
+                    row.prop(lattice_object, "hide_viewport", text="", icon=icon, toggle=True)
+
+                # Strength slider for all lattice modifiers with the same name
+                row = box.row()
+                row.prop(mods[0], "strength", text="Strength")
+                for mod in mods[1:]:
+                    mod.strength = mods[0].strength
+
 
 # Operators
 class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
@@ -183,6 +204,22 @@ def group_objects_by_collection(context):
         grouped[collection].append(obj)
 
     return grouped
+
+
+# Helper function to get lattice modifiers for managed objects
+def get_lattice_modifiers(context):
+    lattice_modifiers = {}
+    managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
+                       item.object_name in context.scene.objects]
+
+    for obj in managed_objects:
+        for mod in obj.modifiers:
+            if mod.type == 'LATTICE':
+                if mod.name not in lattice_modifiers:
+                    lattice_modifiers[mod.name] = []
+                lattice_modifiers[mod.name].append(mod)
+
+    return lattice_modifiers
 
 
 # Registration
