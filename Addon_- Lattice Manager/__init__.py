@@ -26,6 +26,7 @@ import bpy
 from .lattice_manager_v01 import (
     LatticeManagerProperties,
     ManagedObject,
+    LatticeData,
     OBJECT_PT_LatticeManager,
     OBJECT_OT_LatticeManageSelected,
     OBJECT_OT_LatticeUnmanageAll,
@@ -44,6 +45,7 @@ class ManagedObject(bpy.types.PropertyGroup):
     lattice_modifiers: bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
 
 classes = (
+    LatticeData,
     LatticeManagerProperties,
     ManagedObject,
     OBJECT_PT_LatticeManager,

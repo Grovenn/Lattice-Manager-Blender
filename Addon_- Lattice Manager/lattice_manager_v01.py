@@ -7,6 +7,17 @@ bl_info = {
     "category": "Object",
 }
 
+# Properties for per-lattice data
+class LatticeData(bpy.types.PropertyGroup):
+    lattice_name: bpy.props.StringProperty()
+    strength: bpy.props.FloatProperty(
+        name="Strength",
+        default=0.0,
+        min=0.0,
+        max=1.0,
+        update=lambda self, context: update_strength(context, self.lattice_name, self.strength)
+    )
+
 # Properties for managing objects
 class LatticeManagerProperties(bpy.types.PropertyGroup):
     is_managing: bpy.props.BoolProperty(default=False)
@@ -25,14 +36,7 @@ class LatticeManagerProperties(bpy.types.PropertyGroup):
         default=0,
         description="Tracks the number of lattices created by the addon",
     )
-    lattice_strength: bpy.props.FloatProperty(
-        name="Lattice Strength",
-        default=1.0,
-        min=0.0,
-        max=1.0,
-        description="Strength of the lattice modifier",
-        update=lambda self, context: update_strength(context, self.lattice_strength, self.lattice_object.name)
-    )
+    lattice_data: bpy.props.CollectionProperty(type=LatticeData)
 
 # Collection Property to Store Managed Objects
 class ManagedObject(bpy.types.PropertyGroup):
@@ -76,6 +80,7 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
         print(f"Gathered lattice modifiers: {lattice_modifiers}")
         if lattice_modifiers:
             layout.label(text="Lattice Modifiers:")
+            props = context.scene.lattice_manager_props
             for lattice_name, data in lattice_modifiers.items():
                 print(f"Drawing UI for lattice modifier: {lattice_name}")
                 box = layout.box()
@@ -112,10 +117,13 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
 
                 # Strength slider
                 row = box.row()
-                # Use the first strength modifier for the slider display
-                first_strength_modifier = data["strength_modifiers"][0]
-                print(f"Drawing strength slider for {lattice_name} with current strength {first_strength_modifier.strength}")
-                row.prop(first_strength_modifier, "strength", text="Strength", slider=True)
+                # Find the corresponding lattice data item
+                lattice_data_item = next((item for item in props.lattice_data if item.lattice_name == lattice_name), None)
+                if lattice_data_item:
+                    print(f"Drawing strength slider for {lattice_name} with current strength {lattice_data_item.strength}")
+                    row.prop(lattice_data_item, "strength", text="Strength", slider=True)
+                else:
+                    print(f"No lattice data found for {lattice_name}")
 
 # Operators
 class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
@@ -135,13 +143,8 @@ class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
                 item = context.scene.managed_objects.add()
                 item.object_name = obj.name
 
-                # Store lattice modifiers
-                for mod in obj.modifiers:
-                    if mod.type == 'LATTICE' and mod.object:
-                        mod.name = mod.object.name  # Ensure modifier name matches lattice object name
-                        lattice_mod = item.lattice_modifiers.add()
-                        lattice_mod.name = mod.name
-                        mod.strength = 0.0  # Set strength to 0
+        # Update lattice data after managing objects
+        update_lattice_data(context)
 
         self.report({'INFO'}, "Managed selected objects.")
         return {'FINISHED'}
@@ -163,6 +166,8 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
 
     def execute(self, context):
         add_lattice(context, manage_all=True)
+        # Update lattice data after adding lattices
+        update_lattice_data(context)
         self.report({'INFO'}, "Added lattice to all managed objects.")
         return {'FINISHED'}
 
@@ -172,6 +177,8 @@ class OBJECT_OT_LatticeAddToSelected(bpy.types.Operator):
 
     def execute(self, context):
         add_lattice(context, manage_all=False)
+        # Update lattice data after adding lattices
+        update_lattice_data(context)
         self.report({'INFO'}, "Added lattice to selected objects.")
         return {'FINISHED'}
 
@@ -225,9 +232,9 @@ class OBJECT_OT_ApplyLatticeModifier(bpy.types.Operator):
             if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.modifier_apply(modifier=self.modifier_name)
-        # Clear relevant properties
-        context.scene.managed_objects.clear()
-        self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects and cleared managed objects.")
+        # Update lattice data after applying modifiers
+        update_lattice_data(context)
+        self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects.")
         return {'FINISHED'}
 
 class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
@@ -240,9 +247,9 @@ class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
         for obj in context.scene.objects:
             if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
                 obj.modifiers.remove(obj.modifiers[self.modifier_name])
-        # Clear relevant properties
-        context.scene.managed_objects.clear()
-        self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects and cleared managed objects.")
+        # Update lattice data after deleting modifiers
+        update_lattice_data(context)
+        self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects.")
         return {'FINISHED'}
 
 # Helper Functions
@@ -312,7 +319,7 @@ def create_and_position_lattice(context, min_coords, max_coords):
     return lattice
 
 def gather_lattice_modifiers(context):
-    """ Gathers all lattice modifiers by modifier name across managed objects. """
+    """ Gathers all lattice modifiers by modifier name across managed objects without modifying props. """
     lattice_modifiers = {}
     managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
                        item.object_name in context.scene.objects]
@@ -320,23 +327,37 @@ def gather_lattice_modifiers(context):
     for obj in managed_objects:
         for mod in obj.modifiers:
             if mod.type == 'LATTICE' and mod.object:
-                if mod.name not in lattice_modifiers:
-                    lattice_modifiers[mod.name] = {
+                lattice_name = mod.name
+                if lattice_name not in lattice_modifiers:
+                    lattice_modifiers[lattice_name] = {
                         "lattice_object": mod.object,
                         "strength_modifiers": [mod],
                         "visible": not mod.object.hide_viewport
                     }
                 else:
-                    # Add the strength modifier to the list for the same lattice name
-                    lattice_modifiers[mod.name]["strength_modifiers"].append(mod)
+                    lattice_modifiers[lattice_name]["strength_modifiers"].append(mod)
 
     return lattice_modifiers
 
-def update_strength(context, strength_value, lattice_name):
-    """ Update the strength of all lattice modifiers with the same name. """
+def update_lattice_data(context):
+    """ Updates the lattice_data collection in props based on current lattice modifiers. """
+    props = context.scene.lattice_manager_props
+    props.lattice_data.clear()
+    lattice_modifiers = gather_lattice_modifiers(context)
+
+    for lattice_name, data in lattice_modifiers.items():
+        lattice_data_item = props.lattice_data.add()
+        lattice_data_item.lattice_name = lattice_name
+        # Set default strength or retrieve from existing modifiers
+        first_mod = data["strength_modifiers"][0]
+        lattice_data_item.strength = first_mod.strength
+
+def update_strength(context, lattice_name, strength_value):
+    """ Update the strength of all lattice modifiers with the given lattice_name. """
     print(f"Updating strength to {strength_value} for lattice modifiers named {lattice_name}")
-    for obj in context.scene.objects:
-        for mod in obj.modifiers:
-            if mod.type == 'LATTICE' and mod.name == lattice_name:
-                print(f"Updating {mod.name} on object {obj.name} to strength {strength_value}")
-                mod.strength = strength_value
+    lattice_modifiers = gather_lattice_modifiers(context)
+    if lattice_name in lattice_modifiers:
+        for mod in lattice_modifiers[lattice_name]["strength_modifiers"]:
+            print(f"Updating {mod.name} on object {mod.id_data.name} to strength {strength_value}")
+            mod.strength = strength_value
+            print(f"Updated {mod.name} on object {mod.id_data.name} to strength {mod.strength}")
