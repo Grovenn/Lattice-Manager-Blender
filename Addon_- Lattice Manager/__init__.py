@@ -38,6 +38,11 @@ from .lattice_manager_v01 import (
     OBJECT_OT_DeleteLatticeModifier,
 )
 
+# Ensure ManagedObject includes lattice_modifiers property
+class ManagedObject(bpy.types.PropertyGroup):
+    object_name: bpy.props.StringProperty()
+    lattice_modifiers: bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
+
 classes = (
     LatticeManagerProperties,
     ManagedObject,

@@ -25,10 +25,19 @@ class LatticeManagerProperties(bpy.types.PropertyGroup):
         default=0,
         description="Tracks the number of lattices created by the addon",
     )
+    lattice_strength: bpy.props.FloatProperty(
+        name="Lattice Strength",
+        default=1.0,
+        min=0.0,
+        max=1.0,
+        description="Strength of the lattice modifier",
+        update=lambda self, context: update_strength(context, self.lattice_strength, self.lattice_object.name)
+    )
 
 # Collection Property to Store Managed Objects
 class ManagedObject(bpy.types.PropertyGroup):
     object_name: bpy.props.StringProperty()
+    lattice_modifiers: bpy.props.CollectionProperty(type=bpy.types.PropertyGroup)
 
 # Panel UI
 class OBJECT_PT_LatticeManager(bpy.types.Panel):
@@ -64,9 +73,11 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
 
     def draw_lattice_modifiers(self, context, layout):
         lattice_modifiers = gather_lattice_modifiers(context)
+        print(f"Gathered lattice modifiers: {lattice_modifiers}")
         if lattice_modifiers:
             layout.label(text="Lattice Modifiers:")
             for lattice_name, data in lattice_modifiers.items():
+                print(f"Drawing UI for lattice modifier: {lattice_name}")
                 box = layout.box()
 
                 # Draw lattice name
@@ -77,26 +88,34 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 visibility_icon = 'HIDE_OFF' if data["visible"] else 'HIDE_ON'
                 op = row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon, emboss=False)
                 op.lattice_name = data["lattice_object"].name
+                print(f"Visibility toggle button for {lattice_name} with icon {visibility_icon}")
 
                 # Action buttons: Select/Deselect
                 row = box.row(align=True)
                 select_op = row.operator("object.select_objects_with_modifier", text="Select Objects")
                 select_op.modifier_name = lattice_name
+                print(f"Select button for {lattice_name}")
 
                 deselect_op = row.operator("object.deselect_objects_with_modifier", text="Deselect Objects")
                 deselect_op.modifier_name = lattice_name
+                print(f"Deselect button for {lattice_name}")
 
                 # Action buttons: Apply/Delete
                 row = box.row(align=True)
                 apply_op = row.operator("object.apply_lattice_modifier", text="Apply Lattice Modifiers")
                 apply_op.modifier_name = lattice_name
+                print(f"Apply button for {lattice_name}")
 
                 delete_op = row.operator("object.delete_lattice_modifier", text="Delete Lattice Modifiers")
                 delete_op.modifier_name = lattice_name
+                print(f"Delete button for {lattice_name}")
 
                 # Strength slider
                 row = box.row()
-                row.prop(data["strength_modifier"], "strength", text="Strength", slider=True)
+                # Use the first strength modifier for the slider display
+                first_strength_modifier = data["strength_modifiers"][0]
+                print(f"Drawing strength slider for {lattice_name} with current strength {first_strength_modifier.strength}")
+                row.prop(first_strength_modifier, "strength", text="Strength", slider=True)
 
 # Operators
 class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
@@ -115,6 +134,14 @@ class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
             if obj.type == 'MESH':
                 item = context.scene.managed_objects.add()
                 item.object_name = obj.name
+
+                # Store lattice modifiers
+                for mod in obj.modifiers:
+                    if mod.type == 'LATTICE' and mod.object:
+                        mod.name = mod.object.name  # Ensure modifier name matches lattice object name
+                        lattice_mod = item.lattice_modifiers.add()
+                        lattice_mod.name = mod.name
+                        mod.strength = 0.0  # Set strength to 0
 
         self.report({'INFO'}, "Managed selected objects.")
         return {'FINISHED'}
@@ -198,7 +225,9 @@ class OBJECT_OT_ApplyLatticeModifier(bpy.types.Operator):
             if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
                 bpy.context.view_layer.objects.active = obj
                 bpy.ops.object.modifier_apply(modifier=self.modifier_name)
-        self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects.")
+        # Clear relevant properties
+        context.scene.managed_objects.clear()
+        self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects and cleared managed objects.")
         return {'FINISHED'}
 
 class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
@@ -211,7 +240,9 @@ class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
         for obj in context.scene.objects:
             if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
                 obj.modifiers.remove(obj.modifiers[self.modifier_name])
-        self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects.")
+        # Clear relevant properties
+        context.scene.managed_objects.clear()
+        self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects and cleared managed objects.")
         return {'FINISHED'}
 
 # Helper Functions
@@ -252,6 +283,7 @@ def add_lattice(context, manage_all):
     for obj in objects:
         mod = obj.modifiers.new(name=modifier_name, type='LATTICE')
         mod.object = lattice
+        mod.strength = 0.0  # Set default strength to 0
 
 def calculate_bounding_box(objects):
     # Start with the bounding box of the first object
@@ -291,7 +323,20 @@ def gather_lattice_modifiers(context):
                 if mod.name not in lattice_modifiers:
                     lattice_modifiers[mod.name] = {
                         "lattice_object": mod.object,
-                        "strength_modifier": mod,
+                        "strength_modifiers": [mod],
                         "visible": not mod.object.hide_viewport
                     }
+                else:
+                    # Add the strength modifier to the list for the same lattice name
+                    lattice_modifiers[mod.name]["strength_modifiers"].append(mod)
+
     return lattice_modifiers
+
+def update_strength(context, strength_value, lattice_name):
+    """ Update the strength of all lattice modifiers with the same name. """
+    print(f"Updating strength to {strength_value} for lattice modifiers named {lattice_name}")
+    for obj in context.scene.objects:
+        for mod in obj.modifiers:
+            if mod.type == 'LATTICE' and mod.name == lattice_name:
+                print(f"Updating {mod.name} on object {obj.name} to strength {strength_value}")
+                mod.strength = strength_value
