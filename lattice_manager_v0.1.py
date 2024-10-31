@@ -58,7 +58,9 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
             if props.use_existing_lattice:
                 layout.prop_search(props, "lattice_object", context.scene, "objects")
 
-            layout.operator("object.lattice_add_to_all", text="Add Lattice to All")
+            row = layout.row(align=True)
+            row.operator("object.lattice_add_to_all", text="Add Lattice to All")
+            row.operator("object.lattice_add_to_selected", text="Add Lattice to Selected")
 
             # Display lattice modifiers in managed objects
             self.draw_lattice_modifiers(context, layout)
@@ -139,9 +141,25 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
     bl_label = "Add Lattice to All"
 
     def execute(self, context):
+        self.add_lattice(context, manage_all=True)
+        return {'FINISHED'}
+
+
+class OBJECT_OT_LatticeAddToSelected(bpy.types.Operator):
+    bl_idname = "object.lattice_add_to_selected"
+    bl_label = "Add Lattice to Selected"
+
+    def execute(self, context):
+        self.add_lattice(context, manage_all=False)
+        return {'FINISHED'}
+
+    def add_lattice(self, context, manage_all):
         props = context.scene.lattice_manager_props
-        managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
-                           item.object_name in context.scene.objects]
+        if manage_all:
+            objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
+                       item.object_name in context.scene.objects]
+        else:
+            objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
 
         # Check if we should use an existing lattice
         if props.use_existing_lattice and props.lattice_object:
@@ -149,7 +167,7 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
             modifier_name = lattice.name
         else:
             # Calculate bounding box and create new lattice
-            min_coords, max_coords = self.calculate_bounding_box(managed_objects)
+            min_coords, max_coords = self.calculate_bounding_box(objects)
             lattice = self.create_and_position_lattice(context, min_coords, max_coords)
 
             # Increment lattice count and rename lattice object
@@ -168,12 +186,10 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
                 col.objects.unlink(lattice)
             lattice_collection.objects.link(lattice)
 
-        # Add lattice modifier to all managed objects with specified name
-        for obj in managed_objects:
+        # Add lattice modifier to all selected or managed objects
+        for obj in objects:
             mod = obj.modifiers.new(name=modifier_name, type='LATTICE')
             mod.object = lattice
-        self.report({'INFO'}, "Lattice modifiers added to managed objects.")
-        return {'FINISHED'}
 
     def calculate_bounding_box(self, objects):
         # Start with the bounding box of the first object
@@ -314,6 +330,7 @@ classes = [
     OBJECT_OT_LatticeManageSelected,
     OBJECT_OT_LatticeUnmanageAll,
     OBJECT_OT_LatticeAddToAll,
+    OBJECT_OT_LatticeAddToSelected,
     OBJECT_OT_ToggleLatticeVisibility,
     OBJECT_OT_SelectObjectsWithModifier,
     OBJECT_OT_DeselectObjectsWithModifier,
