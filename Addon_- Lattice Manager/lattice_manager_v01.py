@@ -7,7 +7,6 @@ bl_info = {
     "category": "Object",
 }
 
-
 # Properties for managing objects
 class LatticeManagerProperties(bpy.types.PropertyGroup):
     is_managing: bpy.props.BoolProperty(default=False)
@@ -27,11 +26,9 @@ class LatticeManagerProperties(bpy.types.PropertyGroup):
         description="Tracks the number of lattices created by the addon",
     )
 
-
 # Collection Property to Store Managed Objects
 class ManagedObject(bpy.types.PropertyGroup):
     object_name: bpy.props.StringProperty()
-
 
 # Panel UI
 class OBJECT_PT_LatticeManager(bpy.types.Panel):
@@ -101,7 +98,6 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 row = box.row()
                 row.prop(data["strength_modifier"], "strength", text="Strength", slider=True)
 
-
 # Operators
 class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
     bl_idname = "object.lattice_manage_selected"
@@ -123,7 +119,6 @@ class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
         self.report({'INFO'}, "Managed selected objects.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_LatticeUnmanageAll(bpy.types.Operator):
     bl_idname = "object.lattice_unmanage_all"
     bl_label = "Unmanage All Managed Objects"
@@ -135,7 +130,6 @@ class OBJECT_OT_LatticeUnmanageAll(bpy.types.Operator):
         self.report({'INFO'}, "Unmanaged all objects.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
     bl_idname = "object.lattice_add_to_all"
     bl_label = "Add Lattice to All"
@@ -145,7 +139,6 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
         self.report({'INFO'}, "Added lattice to all managed objects.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_LatticeAddToSelected(bpy.types.Operator):
     bl_idname = "object.lattice_add_to_selected"
     bl_label = "Add Lattice to Selected"
@@ -154,7 +147,6 @@ class OBJECT_OT_LatticeAddToSelected(bpy.types.Operator):
         add_lattice(context, manage_all=False)
         self.report({'INFO'}, "Added lattice to selected objects.")
         return {'FINISHED'}
-
 
 class OBJECT_OT_ToggleLatticeVisibility(bpy.types.Operator):
     bl_idname = "object.toggle_lattice_visibility"
@@ -169,7 +161,6 @@ class OBJECT_OT_ToggleLatticeVisibility(bpy.types.Operator):
             self.report({'INFO'}, f"Toggled visibility of lattice '{self.lattice_name}'.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_SelectObjectsWithModifier(bpy.types.Operator):
     bl_idname = "object.select_objects_with_modifier"
     bl_label = "Select Objects with Modifier"
@@ -183,7 +174,6 @@ class OBJECT_OT_SelectObjectsWithModifier(bpy.types.Operator):
         self.report({'INFO'}, f"Selected objects with modifier '{self.modifier_name}'.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_DeselectObjectsWithModifier(bpy.types.Operator):
     bl_idname = "object.deselect_objects_with_modifier"
     bl_label = "Deselect Objects with Modifier"
@@ -196,7 +186,6 @@ class OBJECT_OT_DeselectObjectsWithModifier(bpy.types.Operator):
                 obj.select_set(False)
         self.report({'INFO'}, f"Deselected objects with modifier '{self.modifier_name}'.")
         return {'FINISHED'}
-
 
 class OBJECT_OT_ApplyLatticeModifier(bpy.types.Operator):
     bl_idname = "object.apply_lattice_modifier"
@@ -212,7 +201,6 @@ class OBJECT_OT_ApplyLatticeModifier(bpy.types.Operator):
         self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects.")
         return {'FINISHED'}
 
-
 class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
     bl_idname = "object.delete_lattice_modifier"
     bl_label = "Delete Lattice Modifier"
@@ -225,7 +213,6 @@ class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
                 obj.modifiers.remove(obj.modifiers[self.modifier_name])
         self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects.")
         return {'FINISHED'}
-
 
 # Helper Functions
 def add_lattice(context, manage_all):
@@ -266,7 +253,6 @@ def add_lattice(context, manage_all):
         mod = obj.modifiers.new(name=modifier_name, type='LATTICE')
         mod.object = lattice
 
-
 def calculate_bounding_box(objects):
     # Start with the bounding box of the first object
     min_coords = Vector((float('inf'), float('inf'), float('inf')))
@@ -280,7 +266,6 @@ def calculate_bounding_box(objects):
 
     return min_coords, max_coords
 
-
 def create_and_position_lattice(context, min_coords, max_coords):
     # Create a new lattice object
     lattice_data = bpy.data.lattices.new("Lattice")
@@ -293,7 +278,6 @@ def create_and_position_lattice(context, min_coords, max_coords):
     lattice.scale = (max_coords - min_coords) / 2 * 2  # Scaling up by a factor of 2
 
     return lattice
-
 
 def gather_lattice_modifiers(context):
     """ Gathers all lattice modifiers by modifier name across managed objects. """
@@ -311,38 +295,3 @@ def gather_lattice_modifiers(context):
                         "visible": not mod.object.hide_viewport
                     }
     return lattice_modifiers
-
-
-# Registration
-classes = [
-    LatticeManagerProperties,
-    ManagedObject,
-    OBJECT_PT_LatticeManager,
-    OBJECT_OT_LatticeManageSelected,
-    OBJECT_OT_LatticeUnmanageAll,
-    OBJECT_OT_LatticeAddToAll,
-    OBJECT_OT_LatticeAddToSelected,
-    OBJECT_OT_ToggleLatticeVisibility,
-    OBJECT_OT_SelectObjectsWithModifier,
-    OBJECT_OT_DeselectObjectsWithModifier,
-    OBJECT_OT_ApplyLatticeModifier,
-    OBJECT_OT_DeleteLatticeModifier,
-]
-
-
-def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    bpy.types.Scene.lattice_manager_props = bpy.props.PointerProperty(type=LatticeManagerProperties)
-    bpy.types.Scene.managed_objects = bpy.props.CollectionProperty(type=ManagedObject)
-
-
-def unregister():
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.lattice_manager_props
-    del bpy.types.Scene.managed_objects
-
-
-if __name__ == "__main__":
-    register()
