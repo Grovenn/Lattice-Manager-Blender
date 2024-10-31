@@ -79,6 +79,20 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 op = row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon, emboss=False)
                 op.lattice_name = data["lattice_object"].name
 
+                # Action buttons
+                row = box.row(align=True)
+                select_op = row.operator("object.select_objects_with_modifier", text="Select Objects")
+                select_op.modifier_name = lattice_name
+
+                deselect_op = row.operator("object.deselect_objects_with_modifier", text="Deselect Objects")
+                deselect_op.modifier_name = lattice_name
+
+                apply_op = row.operator("object.apply_lattice_modifier", text="Apply Lattice Modifiers")
+                apply_op.modifier_name = lattice_name
+
+                delete_op = row.operator("object.delete_lattice_modifier", text="Delete Lattice Modifiers")
+                delete_op.modifier_name = lattice_name
+
                 # Strength slider
                 row = box.row()
                 row.prop(data["strength_modifier"], "strength", text="Strength", slider=True)
@@ -200,6 +214,63 @@ class OBJECT_OT_ToggleLatticeVisibility(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class OBJECT_OT_SelectObjectsWithModifier(bpy.types.Operator):
+    bl_idname = "object.select_objects_with_modifier"
+    bl_label = "Select Objects with Modifier"
+
+    modifier_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        for obj in context.scene.objects:
+            if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
+                obj.select_set(True)
+        self.report({'INFO'}, f"Selected objects with modifier '{self.modifier_name}'.")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_DeselectObjectsWithModifier(bpy.types.Operator):
+    bl_idname = "object.deselect_objects_with_modifier"
+    bl_label = "Deselect Objects with Modifier"
+
+    modifier_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        for obj in context.scene.objects:
+            if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
+                obj.select_set(False)
+        self.report({'INFO'}, f"Deselected objects with modifier '{self.modifier_name}'.")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_ApplyLatticeModifier(bpy.types.Operator):
+    bl_idname = "object.apply_lattice_modifier"
+    bl_label = "Apply Lattice Modifier"
+
+    modifier_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        for obj in context.scene.objects:
+            if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
+                bpy.context.view_layer.objects.active = obj
+                bpy.ops.object.modifier_apply(modifier=self.modifier_name)
+        self.report({'INFO'}, f"Applied lattice modifier '{self.modifier_name}' to all objects.")
+        return {'FINISHED'}
+
+
+class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
+    bl_idname = "object.delete_lattice_modifier"
+    bl_label = "Delete Lattice Modifier"
+
+    modifier_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        for obj in context.scene.objects:
+            if obj.type == 'MESH' and self.modifier_name in obj.modifiers:
+                obj.modifiers.remove(obj.modifiers[self.modifier_name])
+        self.report({'INFO'}, f"Deleted lattice modifier '{self.modifier_name}' from all objects.")
+        return {'FINISHED'}
+
+
 # Helper functions
 def group_objects_by_collection(context):
     grouped = {}
@@ -242,6 +313,10 @@ classes = [
     OBJECT_OT_LatticeUnmanageAll,
     OBJECT_OT_LatticeAddToAll,
     OBJECT_OT_ToggleLatticeVisibility,
+    OBJECT_OT_SelectObjectsWithModifier,
+    OBJECT_OT_DeselectObjectsWithModifier,
+    OBJECT_OT_ApplyLatticeModifier,
+    OBJECT_OT_DeleteLatticeModifier,
 ]
 
 
