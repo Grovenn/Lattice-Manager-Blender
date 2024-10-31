@@ -70,18 +70,18 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
             for lattice_name, data in lattice_modifiers.items():
                 box = layout.box()
 
-                # Draw lattice name, visibility toggle button, and strength slider
+                # Draw lattice name
                 row = box.row(align=True)
                 row.label(text=lattice_name)
 
                 # Visibility toggle button
                 visibility_icon = 'HIDE_OFF' if data["visible"] else 'HIDE_ON'
-                row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon,
-                             emboss=False).lattice_name = lattice_name
+                op = row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon, emboss=False)
+                op.lattice_name = data["lattice_object"].name
 
                 # Strength slider
                 row = box.row()
-                row.prop(data["strength_driver"], "default_value", text="Strength", slider=True)
+                row.prop(data["strength_modifier"], "strength", text="Strength", slider=True)
 
 
 # Operators
@@ -227,7 +227,7 @@ def gather_lattice_modifiers(context):
                 if mod.name not in lattice_modifiers:
                     lattice_modifiers[mod.name] = {
                         "lattice_object": mod.object,
-                        "strength_driver": mod,
+                        "strength_modifier": mod,
                         "visible": not mod.object.hide_viewport
                     }
     return lattice_modifiers
