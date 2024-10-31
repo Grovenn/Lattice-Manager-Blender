@@ -22,14 +22,45 @@ bl_info = {
     "category": "Generic",
 }
 
-from . import auto_load
+import bpy
+from .lattice_manager_v01 import (
+    LatticeManagerProperties,
+    ManagedObject,
+    OBJECT_PT_LatticeManager,
+    OBJECT_OT_LatticeManageSelected,
+    OBJECT_OT_LatticeUnmanageAll,
+    OBJECT_OT_LatticeAddToAll,
+    OBJECT_OT_LatticeAddToSelected,
+    OBJECT_OT_ToggleLatticeVisibility,
+    OBJECT_OT_SelectObjectsWithModifier,
+    OBJECT_OT_DeselectObjectsWithModifier,
+    OBJECT_OT_ApplyLatticeModifier,
+    OBJECT_OT_DeleteLatticeModifier,
+)
 
-auto_load.init()
-
+classes = (
+    LatticeManagerProperties,
+    ManagedObject,
+    OBJECT_PT_LatticeManager,
+    OBJECT_OT_LatticeManageSelected,
+    OBJECT_OT_LatticeUnmanageAll,
+    OBJECT_OT_LatticeAddToAll,
+    OBJECT_OT_LatticeAddToSelected,
+    OBJECT_OT_ToggleLatticeVisibility,
+    OBJECT_OT_SelectObjectsWithModifier,
+    OBJECT_OT_DeselectObjectsWithModifier,
+    OBJECT_OT_ApplyLatticeModifier,
+    OBJECT_OT_DeleteLatticeModifier,
+)
 
 def register():
-    auto_load.register()
-
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    bpy.types.Scene.lattice_manager_props = bpy.props.PointerProperty(type=LatticeManagerProperties)
+    bpy.types.Scene.managed_objects = bpy.props.CollectionProperty(type=ManagedObject)
 
 def unregister():
-    auto_load.unregister()
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+    del bpy.types.Scene.lattice_manager_props
+    del bpy.types.Scene.managed_objects
