@@ -79,7 +79,7 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 op = row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon, emboss=False)
                 op.lattice_name = data["lattice_object"].name
 
-                # Action buttons
+                # Action buttons: Select/Deselect
                 row = box.row(align=True)
                 select_op = row.operator("object.select_objects_with_modifier", text="Select Objects")
                 select_op.modifier_name = lattice_name
@@ -87,6 +87,8 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 deselect_op = row.operator("object.deselect_objects_with_modifier", text="Deselect Objects")
                 deselect_op.modifier_name = lattice_name
 
+                # Action buttons: Apply/Delete
+                row = box.row(align=True)
                 apply_op = row.operator("object.apply_lattice_modifier", text="Apply Lattice Modifiers")
                 apply_op.modifier_name = lattice_name
 
