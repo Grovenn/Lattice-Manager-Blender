@@ -141,7 +141,8 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
     bl_label = "Add Lattice to All"
 
     def execute(self, context):
-        self.add_lattice(context, manage_all=True)
+        add_lattice(context, manage_all=True)
+        self.report({'INFO'}, "Added lattice to all managed objects.")
         return {'FINISHED'}
 
 
@@ -150,72 +151,9 @@ class OBJECT_OT_LatticeAddToSelected(bpy.types.Operator):
     bl_label = "Add Lattice to Selected"
 
     def execute(self, context):
-        self.add_lattice(context, manage_all=False)
+        add_lattice(context, manage_all=False)
+        self.report({'INFO'}, "Added lattice to selected objects.")
         return {'FINISHED'}
-
-    def add_lattice(self, context, manage_all):
-        props = context.scene.lattice_manager_props
-        if manage_all:
-            objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
-                       item.object_name in context.scene.objects]
-        else:
-            objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
-
-        # Check if we should use an existing lattice
-        if props.use_existing_lattice and props.lattice_object:
-            lattice = props.lattice_object
-            modifier_name = lattice.name
-        else:
-            # Calculate bounding box and create new lattice
-            min_coords, max_coords = self.calculate_bounding_box(objects)
-            lattice = self.create_and_position_lattice(context, min_coords, max_coords)
-
-            # Increment lattice count and rename lattice object
-            props.lattice_count += 1
-            lattice.name = f"Lattice {props.lattice_count}"
-            modifier_name = lattice.name
-
-            # Move the lattice to a "Lattices" collection in the Scene Collection
-            lattice_collection = bpy.data.collections.get("Lattices")
-            if not lattice_collection:
-                lattice_collection = bpy.data.collections.new("Lattices")
-                context.scene.collection.children.link(lattice_collection)
-
-            # Ensure lattice is only linked to "Lattices" collection
-            for col in lattice.users_collection:
-                col.objects.unlink(lattice)
-            lattice_collection.objects.link(lattice)
-
-        # Add lattice modifier to all selected or managed objects
-        for obj in objects:
-            mod = obj.modifiers.new(name=modifier_name, type='LATTICE')
-            mod.object = lattice
-
-    def calculate_bounding_box(self, objects):
-        # Start with the bounding box of the first object
-        min_coords = Vector((float('inf'), float('inf'), float('inf')))
-        max_coords = Vector((float('-inf'), float('-inf'), float('-inf')))
-
-        for obj in objects:
-            for vertex in obj.bound_box:
-                world_vertex = obj.matrix_world @ Vector(vertex)
-                min_coords = Vector((min(min_coords[i], world_vertex[i]) for i in range(3)))
-                max_coords = Vector((max(max_coords[i], world_vertex[i]) for i in range(3)))
-
-        return min_coords, max_coords
-
-    def create_and_position_lattice(self, context, min_coords, max_coords):
-        # Create a new lattice object
-        lattice_data = bpy.data.lattices.new("Lattice")
-        lattice = bpy.data.objects.new("Lattice", lattice_data)
-
-        # Position the lattice at the center of the bounding box
-        lattice.location = (min_coords + max_coords) / 2
-
-        # Set the dimensions of the lattice to fit the bounding box with a scaling factor of 2
-        lattice.scale = (max_coords - min_coords) / 2 * 2  # Scaling up by a factor of 2
-
-        return lattice
 
 
 class OBJECT_OT_ToggleLatticeVisibility(bpy.types.Operator):
@@ -289,19 +227,72 @@ class OBJECT_OT_DeleteLatticeModifier(bpy.types.Operator):
         return {'FINISHED'}
 
 
-# Helper functions
-def group_objects_by_collection(context):
-    grouped = {}
-    managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
-                       item.object_name in context.scene.objects]
+# Helper Functions
+def add_lattice(context, manage_all):
+    props = context.scene.lattice_manager_props
+    if manage_all:
+        objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
+                   item.object_name in context.scene.objects]
+    else:
+        objects = [obj for obj in context.selected_objects if obj.type == 'MESH']
 
-    for obj in managed_objects:
-        collection = obj.users_collection[0].name if obj.users_collection else "None"
-        if collection not in grouped:
-            grouped[collection] = []
-        grouped[collection].append(obj)
+    # Check if we should use an existing lattice
+    if props.use_existing_lattice and props.lattice_object:
+        lattice = props.lattice_object
+        modifier_name = lattice.name
+    else:
+        # Calculate bounding box and create new lattice
+        min_coords, max_coords = calculate_bounding_box(objects)
+        lattice = create_and_position_lattice(context, min_coords, max_coords)
 
-    return grouped
+        # Increment lattice count and rename lattice object
+        props.lattice_count += 1
+        lattice.name = f"Lattice {props.lattice_count}"
+        modifier_name = lattice.name
+
+        # Move the lattice to a "Lattices" collection in the Scene Collection
+        lattice_collection = bpy.data.collections.get("Lattices")
+        if not lattice_collection:
+            lattice_collection = bpy.data.collections.new("Lattices")
+            context.scene.collection.children.link(lattice_collection)
+
+        # Ensure lattice is only linked to "Lattices" collection
+        for col in lattice.users_collection:
+            col.objects.unlink(lattice)
+        lattice_collection.objects.link(lattice)
+
+    # Add lattice modifier to all selected or managed objects
+    for obj in objects:
+        mod = obj.modifiers.new(name=modifier_name, type='LATTICE')
+        mod.object = lattice
+
+
+def calculate_bounding_box(objects):
+    # Start with the bounding box of the first object
+    min_coords = Vector((float('inf'), float('inf'), float('inf')))
+    max_coords = Vector((float('-inf'), float('-inf'), float('-inf')))
+
+    for obj in objects:
+        for vertex in obj.bound_box:
+            world_vertex = obj.matrix_world @ Vector(vertex)
+            min_coords = Vector((min(min_coords[i], world_vertex[i]) for i in range(3)))
+            max_coords = Vector((max(max_coords[i], world_vertex[i]) for i in range(3)))
+
+    return min_coords, max_coords
+
+
+def create_and_position_lattice(context, min_coords, max_coords):
+    # Create a new lattice object
+    lattice_data = bpy.data.lattices.new("Lattice")
+    lattice = bpy.data.objects.new("Lattice", lattice_data)
+
+    # Position the lattice at the center of the bounding box
+    lattice.location = (min_coords + max_coords) / 2
+
+    # Set the dimensions of the lattice to fit the bounding box with a scaling factor of 2
+    lattice.scale = (max_coords - min_coords) / 2 * 2  # Scaling up by a factor of 2
+
+    return lattice
 
 
 def gather_lattice_modifiers(context):
