@@ -60,12 +60,28 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
 
             layout.operator("object.lattice_add_to_all", text="Add Lattice to All")
 
-            # Display managed objects grouped by collection
-            col = layout.column()
-            for coll_name, objs in group_objects_by_collection(context).items():
-                col.label(text=f"Collection: {coll_name}")
-                for obj in objs:
-                    col.label(text=f"  - {obj.name}")
+            # Display lattice modifiers in managed objects
+            self.draw_lattice_modifiers(context, layout)
+
+    def draw_lattice_modifiers(self, context, layout):
+        lattice_modifiers = gather_lattice_modifiers(context)
+        if lattice_modifiers:
+            layout.label(text="Lattice Modifiers:")
+            for lattice_name, data in lattice_modifiers.items():
+                box = layout.box()
+
+                # Draw lattice name, visibility toggle button, and strength slider
+                row = box.row(align=True)
+                row.label(text=lattice_name)
+
+                # Visibility toggle button
+                visibility_icon = 'HIDE_OFF' if data["visible"] else 'HIDE_ON'
+                row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon,
+                             emboss=False).lattice_name = lattice_name
+
+                # Strength slider
+                row = box.row()
+                row.prop(data["strength_driver"], "default_value", text="Strength", slider=True)
 
 
 # Operators
@@ -170,7 +186,21 @@ class OBJECT_OT_LatticeAddToAll(bpy.types.Operator):
         return lattice
 
 
-# Helper function to group objects by collection
+class OBJECT_OT_ToggleLatticeVisibility(bpy.types.Operator):
+    bl_idname = "object.toggle_lattice_visibility"
+    bl_label = "Toggle Lattice Visibility"
+
+    lattice_name: bpy.props.StringProperty()
+
+    def execute(self, context):
+        lattice_object = bpy.data.objects.get(self.lattice_name)
+        if lattice_object:
+            lattice_object.hide_viewport = not lattice_object.hide_viewport
+            self.report({'INFO'}, f"Toggled visibility of lattice '{self.lattice_name}'.")
+        return {'FINISHED'}
+
+
+# Helper functions
 def group_objects_by_collection(context):
     grouped = {}
     managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
@@ -185,6 +215,24 @@ def group_objects_by_collection(context):
     return grouped
 
 
+def gather_lattice_modifiers(context):
+    """ Gathers all lattice modifiers by modifier name across managed objects. """
+    lattice_modifiers = {}
+    managed_objects = [context.scene.objects[item.object_name] for item in context.scene.managed_objects if
+                       item.object_name in context.scene.objects]
+
+    for obj in managed_objects:
+        for mod in obj.modifiers:
+            if mod.type == 'LATTICE' and mod.object:
+                if mod.name not in lattice_modifiers:
+                    lattice_modifiers[mod.name] = {
+                        "lattice_object": mod.object,
+                        "strength_driver": mod,
+                        "visible": not mod.object.hide_viewport
+                    }
+    return lattice_modifiers
+
+
 # Registration
 classes = [
     LatticeManagerProperties,
@@ -193,6 +241,7 @@ classes = [
     OBJECT_OT_LatticeManageSelected,
     OBJECT_OT_LatticeUnmanageAll,
     OBJECT_OT_LatticeAddToAll,
+    OBJECT_OT_ToggleLatticeVisibility,
 ]
 
 
