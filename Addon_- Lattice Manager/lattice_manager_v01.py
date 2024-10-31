@@ -77,12 +77,10 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
 
     def draw_lattice_modifiers(self, context, layout):
         lattice_modifiers = gather_lattice_modifiers(context)
-        print(f"Gathered lattice modifiers: {lattice_modifiers}")
         if lattice_modifiers:
             layout.label(text="Lattice Modifiers:")
             props = context.scene.lattice_manager_props
             for lattice_name, data in lattice_modifiers.items():
-                print(f"Drawing UI for lattice modifier: {lattice_name}")
                 box = layout.box()
 
                 # Draw lattice name
@@ -93,37 +91,29 @@ class OBJECT_PT_LatticeManager(bpy.types.Panel):
                 visibility_icon = 'HIDE_OFF' if data["visible"] else 'HIDE_ON'
                 op = row.operator("object.toggle_lattice_visibility", text="", icon=visibility_icon, emboss=False)
                 op.lattice_name = data["lattice_object"].name
-                print(f"Visibility toggle button for {lattice_name} with icon {visibility_icon}")
 
                 # Action buttons: Select/Deselect
                 row = box.row(align=True)
                 select_op = row.operator("object.select_objects_with_modifier", text="Select Objects")
                 select_op.modifier_name = lattice_name
-                print(f"Select button for {lattice_name}")
 
                 deselect_op = row.operator("object.deselect_objects_with_modifier", text="Deselect Objects")
                 deselect_op.modifier_name = lattice_name
-                print(f"Deselect button for {lattice_name}")
 
                 # Action buttons: Apply/Delete
                 row = box.row(align=True)
                 apply_op = row.operator("object.apply_lattice_modifier", text="Apply Lattice Modifiers")
                 apply_op.modifier_name = lattice_name
-                print(f"Apply button for {lattice_name}")
 
                 delete_op = row.operator("object.delete_lattice_modifier", text="Delete Lattice Modifiers")
                 delete_op.modifier_name = lattice_name
-                print(f"Delete button for {lattice_name}")
 
                 # Strength slider
                 row = box.row()
                 # Find the corresponding lattice data item
                 lattice_data_item = next((item for item in props.lattice_data if item.lattice_name == lattice_name), None)
                 if lattice_data_item:
-                    print(f"Drawing strength slider for {lattice_name} with current strength {lattice_data_item.strength}")
                     row.prop(lattice_data_item, "strength", text="Strength", slider=True)
-                else:
-                    print(f"No lattice data found for {lattice_name}")
 
 # Operators
 class OBJECT_OT_LatticeManageSelected(bpy.types.Operator):
@@ -354,10 +344,7 @@ def update_lattice_data(context):
 
 def update_strength(context, lattice_name, strength_value):
     """ Update the strength of all lattice modifiers with the given lattice_name. """
-    print(f"Updating strength to {strength_value} for lattice modifiers named {lattice_name}")
     lattice_modifiers = gather_lattice_modifiers(context)
     if lattice_name in lattice_modifiers:
         for mod in lattice_modifiers[lattice_name]["strength_modifiers"]:
-            print(f"Updating {mod.name} on object {mod.id_data.name} to strength {strength_value}")
             mod.strength = strength_value
-            print(f"Updated {mod.name} on object {mod.id_data.name} to strength {mod.strength}")
